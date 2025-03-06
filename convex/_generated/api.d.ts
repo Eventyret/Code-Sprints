@@ -14,8 +14,10 @@ import type {
   FunctionReference,
 } from "convex/server";
 import type * as achievements from "../achievements.js";
+import type * as codeExecutions from "../codeExecutions.js";
 import type * as http from "../http.js";
 import type * as seed from "../seed.js";
+import type * as snippet from "../snippet.js";
 import type * as streaks from "../streaks.js";
 import type * as types from "../types.js";
 import type * as users from "../users.js";
@@ -30,8 +32,10 @@ import type * as users from "../users.js";
  */
 declare const fullApi: ApiFromModules<{
   achievements: typeof achievements;
+  codeExecutions: typeof codeExecutions;
   http: typeof http;
   seed: typeof seed;
+  snippet: typeof snippet;
   streaks: typeof streaks;
   types: typeof types;
   users: typeof users;
