@@ -10,6 +10,9 @@ export default defineSchema({
         proSince: v.optional(v.number()),
         customerId: v.optional(v.string()),
         orderId: v.optional(v.string()),
+        xp: v.number(),
+        level: v.number(),
+        totalXp: v.number(),
       }).index("by_user_id", ["userId"]),
     
       codeExecutions: defineTable({
@@ -49,21 +52,32 @@ export default defineSchema({
     description: v.string(),
   }).index("by_key", ["key"]),
 
+  levelRequirements: defineTable({
+    level: v.number(),
+    xpRequired: v.number(),
+    rewards: v.array(v.object({
+      type: v.string(),
+      value: v.any(),
+    })),
+  }).index("by_level", ["level"]),
+
   achievements: defineTable({
-    key: v.string(),
     name: v.string(),
     description: v.string(),
-    icon: v.optional(v.string()),
-    typeId: v.id("achievementTypes"),
-  }).index("by_key", ["key"])
-    .index("by_type_id", ["typeId"]),
+    category: v.string(),
+    icon: v.string(), // Store the React Icons identifier
+    required: v.optional(v.number()),
+    xpReward: v.number(), // XP reward for earning this achievement
+    progress: v.optional(v.number()),
+    earnedAt: v.optional(v.number()),
+  }).index("by_category", ["category"]),
 
   userAchievements: defineTable({
     userId: v.string(),
     achievementId: v.id("achievements"),
     earnedAt: v.number(),
-  }).index("by_user_id", ["userId"])
-    .index("by_achievement_id", ["achievementId"])
+  })
+    .index("by_user_id", ["userId"])
     .index("by_user_id_and_achievement", ["userId", "achievementId"]),
 
   achievementProgress: defineTable({
@@ -71,8 +85,7 @@ export default defineSchema({
     achievementId: v.id("achievements"),
     progress: v.number(),
     required: v.number(),
-  }).index("by_user_id", ["userId"])
-    .index("by_achievement_id", ["achievementId"]),
+  }).index("by_user_id", ["userId"]),
 
   userActivity: defineTable({
     userId: v.string(),
