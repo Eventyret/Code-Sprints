@@ -11,6 +11,7 @@ import useMounted from "@/hooks/useMounted";
 import ShareSnippetDialog from "@/components/ShareSnippetDialog";
 import { EditorPanelSkeleton } from "@/components/EditorPanelSkeleton";
 import { editor } from "monaco-editor";
+import RunButton from "./RunButton";
 
 function EditorPanel() {
   const clerk = useClerk();
@@ -102,6 +103,7 @@ function EditorPanel() {
               <ShareIcon className="size-4 text-white" />
               <span className="text-sm font-medium text-white ">Share</span>
             </motion.button>
+            <RunButton />
           </div>
         </div>
 

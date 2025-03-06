@@ -7,11 +7,13 @@ import { motion } from "framer-motion";
 import { Loader2, Play } from "lucide-react";
 import { api } from "../../../../convex/_generated/api";
 import useMounted from "@/hooks/useMounted";
+import { useStreaks } from "@/lib/services/streaks";
 
 function RunButton() {
   const { user } = useUser();
   const { runCode, language, isRunning } = useCodeEditorStore();
   const saveExecution = useMutation(api.codeExecutions.saveExecution);
+  const { checkAndUpdateStreak } = useStreaks(user?.id || "");
   const mounted = useMounted();
 
   const handleRun = async () => {
@@ -25,6 +27,9 @@ function RunButton() {
         output: result.output || undefined,
         error: result.error || undefined,
       });
+      
+      // Update streak after successful code execution
+      await checkAndUpdateStreak();
     }
   };
 

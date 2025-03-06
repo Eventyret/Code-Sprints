@@ -2,28 +2,77 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Achievement } from "./types";
 
+export const getUserAchievements = query({
+  args: { userId: v.string() },
+  handler: async (ctx, args) => {
+    const userAchievements = await ctx.db
+      .query("userAchievements")
+      .withIndex("by_user_id", (q) => q.eq("userId", args.userId))
+      .collect();
+
+    // Get the full achievement details for each earned achievement
+    const achievements = await Promise.all(
+      userAchievements.map(async (ua) => {
+        const achievement = await ctx.db.get(ua.achievementId);
+        return {
+          ...achievement,
+          earnedAt: ua.earnedAt,
+          _id: ua.achievementId,
+        };
+      })
+    );
+
+    return achievements;
+  },
+});
+
+export const getAchievementProgress = query({
+  args: { userId: v.string() },
+  handler: async (ctx, args) => {
+    const progress = await ctx.db
+      .query("achievementProgress")
+      .withIndex("by_user_id", (q) => q.eq("userId", args.userId))
+      .collect();
+
+    // Get the full achievement details for each progress entry
+    const progressWithDetails = await Promise.all(
+      progress.map(async (p) => {
+        const achievement = await ctx.db.get(p.achievementId);
+        return {
+          ...achievement,
+          progress: p.progress,
+          required: p.required,
+          _id: p.achievementId,
+        };
+      })
+    );
+
+    return progressWithDetails;
+  },
+});
+
 export const awardAchievement = mutation({
   args: {
     userId: v.string(),
     achievementId: v.id("achievements"),
   },
-  handler: async (ctx, { userId, achievementId }) => {
+  handler: async (ctx, args) => {
     // Check if user already has this achievement
-    const existingAchievement = await ctx.db
+    const existing = await ctx.db
       .query("userAchievements")
       .withIndex("by_user_id_and_achievement", (q) =>
-        q.eq("userId", userId).eq("achievementId", achievementId)
+        q
+          .eq("userId", args.userId)
+          .eq("achievementId", args.achievementId)
       )
       .first();
 
-    if (existingAchievement) {
-      return existingAchievement;
-    }
+    if (existing) return existing._id;
 
     // Award the achievement
     return await ctx.db.insert("userAchievements", {
-      userId,
-      achievementId,
+      userId: args.userId,
+      achievementId: args.achievementId,
       earnedAt: Date.now(),
     });
   },
@@ -36,71 +85,38 @@ export const updateAchievementProgress = mutation({
     progress: v.number(),
     required: v.number(),
   },
-  handler: async (ctx, { userId, achievementId, progress, required }) => {
-    // Check if user already has this achievement
-    const existingProgress = await ctx.db
+  handler: async (ctx, args) => {
+    // Check if user already has this achievement progress
+    const existing = await ctx.db
       .query("achievementProgress")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .filter((q) => q.eq(q.field("achievementId"), achievementId))
+      .withIndex("by_user_id", (q) => q.eq("userId", args.userId))
+      .filter((q) => q.eq(q.field("achievementId"), args.achievementId))
       .first();
 
-    if (existingProgress) {
+    if (existing) {
       // Update progress
-      await ctx.db.patch(existingProgress._id, {
-        progress,
+      await ctx.db.patch(existing._id, {
+        progress: args.progress,
       });
 
       // If progress meets requirement, award achievement
-      if (progress >= required) {
+      if (args.progress >= args.required) {
         await ctx.db.insert("userAchievements", {
-          userId,
-          achievementId,
+          userId: args.userId,
+          achievementId: args.achievementId,
           earnedAt: Date.now(),
         });
       }
 
-      return existingProgress;
+      return existing._id;
     }
 
     // Create new progress entry
     return await ctx.db.insert("achievementProgress", {
-      userId,
-      achievementId,
-      progress,
-      required,
+      userId: args.userId,
+      achievementId: args.achievementId,
+      progress: args.progress,
+      required: args.required,
     });
-  },
-});
-
-export const getUserAchievements = query({
-  args: { userId: v.string() },
-  handler: async (ctx, { userId }) => {
-    const achievements = await ctx.db
-      .query("userAchievements")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .collect();
-
-    const progress = await ctx.db
-      .query("achievementProgress")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .collect();
-
-    // Get the actual achievement details
-    const achievementDetails = await Promise.all(
-      achievements.map(async (ua) => {
-        const achievement = await ctx.db.get(ua.achievementId);
-        return achievement;
-      })
-    );
-
-    return {
-      achievements: achievementDetails.filter((a): a is Achievement => a !== null),
-      earnedAt: Object.fromEntries(
-        achievements.map((ua) => [ua.achievementId, ua.earnedAt])
-      ),
-      progress: Object.fromEntries(
-        progress.map((p) => [p.achievementId, p.progress])
-      ),
-    };
   },
 }); 

@@ -45,16 +45,19 @@ http.route({
     const eventType = evt.type;
     if (eventType === "user.created") {
       // save the user to convex db
-      const { id, email_addresses, first_name, last_name } = evt.data;
+      const { id, email_addresses, first_name, last_name, image_url } = evt.data;
 
       const email = email_addresses[0].email_address;
       const name = `${first_name || ""} ${last_name || ""}`.trim();
+      // Use the user's image URL from Clerk, or a default avatar if none exists
+      const imageUrl = image_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${id}`;
 
       try {
         await ctx.runMutation(api.users.syncUser, {
           userId: id,
           email,
           name,
+          imageUrl,
         });
       } catch (error) {
         console.log("Error creating user:", error);
