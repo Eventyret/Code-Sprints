@@ -127,7 +127,7 @@ export const getUserProgress = query({
     if (!user) return null;
 
     const xpForNextLevel = user.level * 1000;
-    const progress = (user.xp / xpForNextLevel) * 100;
+    const progress = Math.min(100, Math.max(0, (user.xp / xpForNextLevel) * 100));
 
     return {
       level: user.level,
@@ -224,7 +224,16 @@ export const awardXP = mutation({
     const currentXP = user.xp || 0;
     const currentLevel = user.level;
     const newXP = currentXP + args.amount;
-    const newLevel = Math.floor(Math.sqrt(newXP / 100)) + 1;
+    
+    // Calculate new level based on XP thresholds
+    const xpForNextLevel = currentLevel * 1000;
+    let newLevel = currentLevel;
+    
+    // Check if user leveled up
+    if (newXP >= xpForNextLevel) {
+      newLevel = currentLevel + 1;
+    }
+    
     const leveledUp = newLevel > currentLevel;
 
     // Update user's XP and level
@@ -243,5 +252,122 @@ export const awardXP = mutation({
       leveledUp,
       previousLevel: currentLevel,
     };
+  },
+});
+
+export const deleteUser = mutation({
+  args: {
+    userId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Get all user data that needs to be cleaned up
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_user_id", (q) => q.eq("userId", args.userId))
+      .first();
+
+    if (!user) return null;
+
+    // Delete all user's code executions
+    const executions = await ctx.db
+      .query("codeExecutions")
+      .withIndex("by_user_id")
+      .filter((q) => q.eq(q.field("userId"), args.userId))
+      .collect();
+    
+    for (const execution of executions) {
+      await ctx.db.delete(execution._id);
+    }
+
+    // Delete all user's snippets and their associated comments and stars
+    const snippets = await ctx.db
+      .query("snippets")
+      .withIndex("by_user_id")
+      .filter((q) => q.eq(q.field("userId"), args.userId))
+      .collect();
+
+    for (const snippet of snippets) {
+      // Delete associated comments
+      const comments = await ctx.db
+        .query("snippetComments")
+        .withIndex("by_snippet_id")
+        .filter((q) => q.eq(q.field("snippetId"), snippet._id))
+        .collect();
+      
+      for (const comment of comments) {
+        await ctx.db.delete(comment._id);
+      }
+
+      // Delete associated stars
+      const stars = await ctx.db
+        .query("stars")
+        .withIndex("by_snippet_id")
+        .filter((q) => q.eq(q.field("snippetId"), snippet._id))
+        .collect();
+      
+      for (const star of stars) {
+        await ctx.db.delete(star._id);
+      }
+
+      // Delete the snippet itself
+      await ctx.db.delete(snippet._id);
+    }
+
+    // Delete user's achievements and progress
+    const userAchievements = await ctx.db
+      .query("userAchievements")
+      .withIndex("by_user_id")
+      .filter((q) => q.eq(q.field("userId"), args.userId))
+      .collect();
+    
+    for (const achievement of userAchievements) {
+      await ctx.db.delete(achievement._id);
+    }
+
+    const achievementProgress = await ctx.db
+      .query("achievementProgress")
+      .withIndex("by_user_id")
+      .filter((q) => q.eq(q.field("userId"), args.userId))
+      .collect();
+    
+    for (const progress of achievementProgress) {
+      await ctx.db.delete(progress._id);
+    }
+
+    // Delete user's activity and streaks
+    const activities = await ctx.db
+      .query("userActivity")
+      .withIndex("by_user_id_and_date")
+      .filter((q) => q.eq(q.field("userId"), args.userId))
+      .collect();
+    
+    for (const activity of activities) {
+      await ctx.db.delete(activity._id);
+    }
+
+    const streak = await ctx.db
+      .query("streaks")
+      .withIndex("by_user_id")
+      .filter((q) => q.eq(q.field("userId"), args.userId))
+      .first();
+    
+    if (streak) {
+      await ctx.db.delete(streak._id);
+    }
+
+    const streakMilestones = await ctx.db
+      .query("streakMilestones")
+      .withIndex("by_user_id")
+      .filter((q) => q.eq(q.field("userId"), args.userId))
+      .collect();
+    
+    for (const milestone of streakMilestones) {
+      await ctx.db.delete(milestone._id);
+    }
+
+    // Finally, delete the user
+    await ctx.db.delete(user._id);
+
+    return { success: true };
   },
 });

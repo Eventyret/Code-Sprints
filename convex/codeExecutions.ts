@@ -2,13 +2,22 @@ import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { paginationOptsValidator } from "convex/server";
 
+// Define the execution result interface
+interface ExecutionResult {
+  code: string;
+  output: string;
+  error: string | null;
+}
+
 export const saveExecution = mutation({
   args: {
     language: v.string(),
     code: v.string(),
-    // we could have either one of them, or both at the same time
-    output: v.optional(v.string()),
-    error: v.optional(v.string()),
+    executionResult: v.object({
+      code: v.string(),
+      output: v.string(),
+      error: v.union(v.string(), v.null()),
+    }),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -25,10 +34,21 @@ export const saveExecution = mutation({
       throw new ConvexError("Pro subscription required to use this language");
     }
 
-    await ctx.db.insert("codeExecutions", {
-      ...args,
+    // Save the execution with all available information
+    const executionId = await ctx.db.insert("codeExecutions", {
       userId: identity.subject,
+      code: args.code,
+      language: args.language,
+      output: args.executionResult.output,
+      error: args.executionResult.error || "",
+      timestamp: Date.now(),
+      executionResult: args.executionResult,
     });
+
+    return {
+      executionId,
+      result: args.executionResult,
+    };
   },
 });
 

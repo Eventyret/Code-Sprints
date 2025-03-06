@@ -1,3 +1,4 @@
+"use client"
 import { CodeEditorState } from "./../types/index";
 import { LANGUAGE_CONFIG } from "@/app/(root)/_constants";
 import { create } from "zustand";
@@ -94,6 +95,7 @@ export const useCodeEditorStore = create<CodeEditorState>((set, get) => {
             files: [{ content: code }],
           }),
         });
+
 
         const data = await response.json();
 

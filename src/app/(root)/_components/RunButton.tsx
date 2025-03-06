@@ -2,34 +2,79 @@
 
 import { getExecutionResult, useCodeEditorStore } from "@/store/useCodeEditorStore";
 import { useUser } from "@clerk/nextjs";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { motion } from "framer-motion";
 import { Loader2, Play } from "lucide-react";
 import { api } from "../../../../convex/_generated/api";
 import useMounted from "@/hooks/useMounted";
 import { useStreaks } from "@/lib/services/streaks";
+import { showXPGain } from "@/components/xp";
 
 function RunButton() {
   const { user } = useUser();
   const { runCode, language, isRunning } = useCodeEditorStore();
   const saveExecution = useMutation(api.codeExecutions.saveExecution);
-  const { checkAndUpdateStreak } = useStreaks(user?.id || "");
+  const awardXP = useMutation(api.users.awardXP);
+  const { streak, checkAndUpdateStreak } = useStreaks(user?.id || "");
   const mounted = useMounted();
+
+  // Add this to ensure XP data is always up to date
+  useQuery(api.users.getUserProgress, { userId: user?.id || "" });
 
   const handleRun = async () => {
     await runCode();
     const result = getExecutionResult();
 
     if (user && result) {
-      await saveExecution({
-        language,
-        code: result.code,
-        output: result.output || undefined,
-        error: result.error || undefined,
-      });
-      
-      // Update streak after successful code execution
-      await checkAndUpdateStreak();
+      try {
+        // Save execution to Convex
+        await saveExecution({
+          language,
+          code: result.code,
+          executionResult: {
+            code: result.code,
+            output: result.output || "",
+            error: result.error,
+          }
+        });
+
+        // Check if it's first execution of the day before awarding XP
+        const wasCodedToday = streak?.hasCodedToday;
+        await checkAndUpdateStreak();
+
+        // Award XP for running code
+        const xpResult = await awardXP({
+          userId: user.id,
+          amount: 10,
+          reason: "Running code"
+        });
+
+        // Show XP notification
+        showXPGain({
+          amount: 10,
+          reason: "Running code",
+          levelUp: xpResult.leveledUp,
+          newLevel: xpResult.level
+        });
+        
+        // If this is the first execution of the day, award bonus XP
+        if (!wasCodedToday) {
+          const dailyXpResult = await awardXP({
+            userId: user.id,
+            amount: 50,
+            reason: "Daily coding bonus"
+          });
+
+          showXPGain({
+            amount: 50,
+            reason: "Daily coding bonus",
+            levelUp: dailyXpResult.leveledUp,
+            newLevel: dailyXpResult.level
+          });
+        }
+      } catch (error) {
+        console.error("Error saving execution:", error);
+      }
     }
   };
 

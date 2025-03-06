@@ -1,14 +1,13 @@
-import { useUser } from "@clerk/nextjs";
-import { Star, Sparkles } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Progress } from "@/components/ui/progress";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Progress } from "@/components/ui/progress";
+import { useUser } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
+import { Sparkles, Star } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 
 export default function XPIndicator() {
@@ -18,10 +17,8 @@ export default function XPIndicator() {
   if (!userProgress) return null;
 
   const { level, xp, totalXp } = userProgress;
-  const nextLevelXp = Math.pow((level + 1) * 100, 1.2);
-  const currentLevelXp = Math.pow(level * 100, 1.2);
-  const xpForNextLevel = nextLevelXp - currentLevelXp;
-  const progress = ((xp - currentLevelXp) / (nextLevelXp - currentLevelXp)) * 100;
+  const xpForNextLevel = level * 1000;
+  const progress = (xp / xpForNextLevel) * 100;
 
   return (
     <TooltipProvider>
@@ -57,7 +54,7 @@ export default function XPIndicator() {
               <div className="space-y-1">
                 <div className="flex justify-between text-xs text-gray-400">
                   <span>Progress to Level {level + 1}</span>
-                  <span>{Math.floor(xp - currentLevelXp).toLocaleString()} / {Math.floor(xpForNextLevel).toLocaleString()} XP</span>
+                  <span>{Math.floor(xp).toLocaleString()} / {xpForNextLevel.toLocaleString()} XP</span>
                 </div>
                 <Progress value={progress} className="h-1" />
               </div>

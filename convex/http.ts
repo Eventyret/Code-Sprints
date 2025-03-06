@@ -63,6 +63,22 @@ http.route({
         console.log("Error creating user:", error);
         return new Response("Error creating user", { status: 500 });
       }
+    } else if (eventType === "user.deleted") {
+      const { id } = evt.data;
+      
+      if (!id) {
+        console.log("No user ID provided in deletion event");
+        return new Response("No user ID provided", { status: 400 });
+      }
+
+      try {
+        await ctx.runMutation(api.users.deleteUser, {
+          userId: id,
+        });
+      } catch (error) {
+        console.log("Error deleting user:", error);
+        return new Response("Error deleting user data", { status: 500 });
+      }
     }
 
     return new Response("Webhook processed successfully", { status: 200 });

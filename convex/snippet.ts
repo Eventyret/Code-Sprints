@@ -1,15 +1,18 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { api } from "./_generated/api";
+import { ConvexError } from "convex/values";
 
 export const createSnippet = mutation({
   args: {
     title: v.string(),
     language: v.string(),
     code: v.string(),
+    description: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    if (!identity) throw new ConvexError("Not authenticated");
 
     const user = await ctx.db
       .query("users")
@@ -17,7 +20,7 @@ export const createSnippet = mutation({
       .filter((q) => q.eq(q.field("userId"), identity.subject))
       .first();
 
-    if (!user) throw new Error("User not found");
+    if (!user) throw new ConvexError("User not found");
 
     const snippetId = await ctx.db.insert("snippets", {
       userId: identity.subject,
@@ -25,7 +28,25 @@ export const createSnippet = mutation({
       title: args.title,
       language: args.language,
       code: args.code,
+      description: args.description,
+      createdAt: Date.now(),
     });
+
+    // Award XP for creating a snippet
+    await ctx.runMutation(api.users.awardXP, {
+      userId: identity.subject,
+      amount: 25,
+      reason: "Created a code snippet",
+    });
+
+    // Additional XP for adding a description (encouraging good documentation)
+    if (args.description) {
+      await ctx.runMutation(api.users.awardXP, {
+        userId: identity.subject,
+        amount: 10,
+        reason: "Added snippet documentation",
+      });
+    }
 
     return snippetId;
   },
@@ -79,6 +100,9 @@ export const starSnippet = mutation({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 
+    const snippet = await ctx.db.get(args.snippetId);
+    if (!snippet) throw new Error("Snippet not found");
+
     const existing = await ctx.db
       .query("stars")
       .withIndex("by_user_id_and_snippet_id")
@@ -95,6 +119,15 @@ export const starSnippet = mutation({
         userId: identity.subject,
         snippetId: args.snippetId,
       });
+
+      // Award XP to the snippet creator for getting a star
+      if (snippet.userId !== identity.subject) { // Don't award XP for self-stars
+        await ctx.runMutation(api.users.awardXP, {
+          userId: snippet.userId,
+          amount: 15,
+          reason: "Your snippet received a star",
+        });
+      }
     }
   },
 });
@@ -106,7 +139,7 @@ export const addComment = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    if (!identity) throw new ConvexError("Not authenticated");
 
     const user = await ctx.db
       .query("users")
@@ -114,14 +147,36 @@ export const addComment = mutation({
       .filter((q) => q.eq(q.field("userId"), identity.subject))
       .first();
 
-    if (!user) throw new Error("User not found");
+    if (!user) throw new ConvexError("User not found");
 
-    return await ctx.db.insert("snippetComments", {
+    // Get the snippet to award XP to its creator
+    const snippet = await ctx.db.get(args.snippetId);
+    if (!snippet) throw new ConvexError("Snippet not found");
+
+    const commentId = await ctx.db.insert("snippetComments", {
       snippetId: args.snippetId,
       userId: identity.subject,
       userName: user.name,
       content: args.content,
     });
+
+    // Award XP to the commenter for contributing to the discussion
+    await ctx.runMutation(api.users.awardXP, {
+      userId: identity.subject,
+      amount: 5,
+      reason: "Added a comment to a snippet",
+    });
+
+    // Award XP to the snippet creator for generating discussion
+    if (snippet.userId !== identity.subject) { // Don't award XP for self-comments
+      await ctx.runMutation(api.users.awardXP, {
+        userId: snippet.userId,
+        amount: 3,
+        reason: "Your snippet received a comment",
+      });
+    }
+
+    return commentId;
   },
 });
 

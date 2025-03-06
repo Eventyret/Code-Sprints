@@ -23,6 +23,11 @@ export default defineSchema({
         output: v.optional(v.string()),
         error: v.optional(v.string()),
         timestamp: v.number(),
+        executionResult: v.object({
+          code: v.string(),
+          output: v.string(),
+          error: v.union(v.string(), v.null()),
+        }),
       }).index("by_user_id", ["userId"]),
     
       snippets: defineTable({
@@ -32,6 +37,7 @@ export default defineSchema({
         title: v.string(),
         description: v.optional(v.string()),
         createdAt: v.number(),
+        userName: v.string(),
       }).index("by_user_id", ["userId"]),
     
       snippetComments: defineTable({
